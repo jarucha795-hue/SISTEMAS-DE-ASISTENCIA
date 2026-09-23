@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Control de Asistencia  2.º Bachillerato A</title>
+<title>Control de Asistencia QR · V2 · 2.º Bachillerato A</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
@@ -56,7 +56,7 @@ label{display:block;font-size:13px;font-weight:700;margin:11px 0 6px}input,selec
 </style>
 </head>
 <body>
-<header><div class="wrap"><h1>Control de Asistencia </h1><div class="sub">Complejo Educativo “Eduardo Salaverría” · 2.º Bachillerato General “A”</div></div></header>
+<header><div class="wrap"><h1>Control de Asistencia QR · V2</h1><div class="sub">Complejo Educativo “Eduardo Salaverría” · 2.º Bachillerato General “A”</div></div></header>
 
 <div id="studentView" class="student-page hidden">
   <div class="card">
@@ -100,8 +100,10 @@ label{display:block;font-size:13px;font-weight:700;margin:11px 0 6px}input,selec
   <div class="card">
     <h3>Registro manual</h3>
     <div class="manual"><div><label>Alumno</label><select id="manualStudent"><option value="">Seleccione…</option></select></div><button id="manualBtn" class="good" disabled>Agregar</button></div>
-    <label>Motivo del permiso (opcional)</label><input id="permReason" placeholder="Ej. Cita médica, actividad institucional">
+    <label>Motivo o nota (opcional)</label><input id="permReason" placeholder="Ej. Cita médica, llegó después del cierre">
     <button id="permBtn" class="secondary" disabled>📝 Marcar con permiso</button>
+    <label>Corregir asistencia (funciona aunque ya esté cerrada)</label>
+    <div class="manual"><div><select id="fixState"><option value="presente">Marcar como Presente</option><option value="tarde">Marcar como Tarde</option></select></div><button id="fixBtn" class="good" disabled>Actualizar</button></div>
     <div id="manualMsg"></div>
   </div>
 </section>
@@ -225,6 +227,7 @@ function renderSession(){
   $('pdfSession').disabled=false;
   $('copyLink').disabled=false;
   $('permBtn').disabled=false;
+  $('fixBtn').disabled=false;
   $('shareBtn').disabled=currentSession.estado!=='abierta';
 
   $('session').textContent=`${currentSession.estado==='abierta'?'Asistencia activa':'Sesión cerrada'} · ${currentSession.asignatura} · ${fmtDT(currentSession.inicio)}${currentSession.estado==='abierta'?' · quedan '+Math.ceil(left/60000)+' min':''}`;
@@ -297,6 +300,25 @@ $('permBtn').onclick=async()=>{
   await loadAttendance();await loadHistory();await loadPeriodStats();
 };
 
+$('fixBtn').onclick=async()=>{
+  if(!currentSession)return; const id=$('manualStudent').value;
+  if(!id){$('manualMsg').innerHTML='<div class="warn">Selecciona un alumno.</div>';return}
+  const s=students.find(x=>x.id===id), estado=$('fixState').value, prev=attendance.find(a=>a.estudiante_id===id);
+  const cerrada=currentSession.estado!=='abierta';
+  if(!confirm(`¿Marcar a ${s?s.nombre:'este alumno'} como ${estado.toUpperCase()}${prev?` (antes: ${prev.estado})`:' (antes: sin registro)'}?`))return;
+  if(prev){
+    const {data,error}=await sb.from('asistencias').delete().eq('id',prev.id).select();
+    if(error||!data||!data.length){$('manualMsg').innerHTML='<div class="err">No se pudo actualizar: '+esc(error?error.message:'falta el permiso de borrado en Supabase')+'</div>';return}
+  }
+  const nota=$('permReason').value.trim();
+  const nuevo={sesion_id:currentSession.id,estudiante_id:id,estado,metodo:'manual',motivo:nota||(cerrada?'Registrado por el docente después de cerrar la asistencia':'Ajuste manual del docente')};
+  const {error}=await sb.from('asistencias').insert(nuevo);
+  if(error&&prev){await sb.from('asistencias').insert({sesion_id:prev.sesion_id,estudiante_id:prev.estudiante_id,estado:prev.estado,metodo:prev.metodo,motivo:prev.motivo||null,registrado_en:prev.registrado_en})}
+  $('manualMsg').innerHTML=error?'<div class="err">'+esc(error.message)+(prev?' (se restauró el registro anterior)':'')+'</div>':'<div class="ok">Asistencia actualizada.</div>';
+  if(!error)$('permReason').value='';
+  await loadAttendance();await loadHistory();await loadPeriodStats();
+};
+
 window.deleteRecord=async id=>{
   const a=attendance.find(x=>String(x.id)===String(id)); if(!a)return;
   const s=students.find(x=>x.id===a.estudiante_id);
@@ -316,7 +338,7 @@ window.deleteSession=async id=>{
   if(currentSession&&currentSession.id===id){
     if(poller)clearInterval(poller);currentSession=null;attendance=[];qrLink='';
     $('session').textContent='No hay una sesión activa.';$('qr').innerHTML='<span class="muted">El QR aparecerá aquí al iniciar.</span>';
-    $('start').disabled=false;$('close').disabled=true;['manualBtn','permBtn','pdfSession','copyLink'].forEach(x=>$(x).disabled=true);
+    $('start').disabled=false;$('close').disabled=true;['manualBtn','permBtn','fixBtn','pdfSession','copyLink'].forEach(x=>$(x).disabled=true);
     $('sessionExtra').textContent='Selecciona o inicia una sesión para ver datos de llegada.';renderRows();
   }
   await loadHistory();await loadPeriodStats();
@@ -367,8 +389,8 @@ $('pdfSession').onclick=()=>{
   doc.setFontSize(14);doc.text('COMPLEJO EDUCATIVO "EDUARDO SALAVERRÍA"',14,16);doc.setFontSize(11);doc.text('2.º Bachillerato General — Sección A',14,23);doc.text('Control de asistencia',14,30);doc.text(`Fecha: ${new Date(currentSession.inicio).toLocaleDateString('es-SV')}`,14,38);doc.text(`Asignatura: ${currentSession.asignatura}`,14,45);doc.text(`Docente: ${currentSession.profesor_nombre}`,14,52);
   doc.text(`Total: ${students.length}   Presentes: ${p}   Tardanzas: ${l}   Permisos: ${pm}`,14,60);doc.text(`Ausentes: ${a}   Asistencia: ${pct}%`,14,67);
   const map=new Map(attendance.map(x=>[x.estudiante_id,x]));
- doc.autoTable({startY:75,head:[['#','NIE','Estudiante','Estado','Hora',]],columnStyles:{4:{cellWidth:55}},
-    body:students.map((s,i)=>{const r=map.get(s.id);return[i+1,s.nie,s.nombre,r?r.estado:'ausente',r?fmtTime(r.registrado_en):'—',r&&r.estado==='permiso'?('Permiso autorizado por el docente'+(r.motivo?': '+r.motivo:'')):'']}),
+  doc.autoTable({startY:75,head:[['#','NIE','Estudiante','Estado','Hora','Observación']],columnStyles:{5:{cellWidth:55}},
+    body:students.map((s,i)=>{const r=map.get(s.id);return[i+1,s.nie,s.nombre,r?r.estado:'ausente',r?fmtTime(r.registrado_en):'—',r&&r.estado==='permiso'?('Permiso autorizado por el docente'+(r.motivo?': '+r.motivo:'')):(r&&r.metodo==='manual'&&r.motivo?('Registro manual del docente: '+r.motivo):'')]}),
     didParseCell:d=>{if(d.section==='body'&&d.row.raw[3]==='permiso')d.cell.styles.fillColor=[219,234,254]}});
   const perms=attendance.filter(x=>x.estado==='permiso');
   if(perms.length){
