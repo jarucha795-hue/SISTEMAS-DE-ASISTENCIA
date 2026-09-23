@@ -367,7 +367,7 @@ $('pdfSession').onclick=()=>{
   doc.setFontSize(14);doc.text('COMPLEJO EDUCATIVO "EDUARDO SALAVERRÍA"',14,16);doc.setFontSize(11);doc.text('2.º Bachillerato General — Sección A',14,23);doc.text('Control de asistencia',14,30);doc.text(`Fecha: ${new Date(currentSession.inicio).toLocaleDateString('es-SV')}`,14,38);doc.text(`Asignatura: ${currentSession.asignatura}`,14,45);doc.text(`Docente: ${currentSession.profesor_nombre}`,14,52);
   doc.text(`Total: ${students.length}   Presentes: ${p}   Tardanzas: ${l}   Permisos: ${pm}`,14,60);doc.text(`Ausentes: ${a}   Asistencia: ${pct}%`,14,67);
   const map=new Map(attendance.map(x=>[x.estudiante_id,x]));
-  doc.autoTable({startY:75,head:[['#','NIE','Estudiante','Estado','Hora','Observación']],columnStyles:{5:{cellWidth:55}},
+  doc.autoTable({startY:75,head:[['#','NIE','Estudiante','Estado','Hora',]],columnStyles:{4:{cellWidth:55}},
     body:students.map((s,i)=>{const r=map.get(s.id);return[i+1,s.nie,s.nombre,r?r.estado:'ausente',r?fmtTime(r.registrado_en):'—',r&&r.estado==='permiso'?('Permiso autorizado por el docente'+(r.motivo?': '+r.motivo:'')):'']}),
     didParseCell:d=>{if(d.section==='body'&&d.row.raw[3]==='permiso')d.cell.styles.fillColor=[219,234,254]}});
   const perms=attendance.filter(x=>x.estado==='permiso');
