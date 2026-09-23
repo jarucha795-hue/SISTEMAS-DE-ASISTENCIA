@@ -3,26 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Control de Asistencia  2.º Bachillerato A</title>
+<title>Control de Asistencia QR · V2 · 2.º Bachillerato A</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
 <style>
 *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;background:#f4f7fb;color:#172033}
 header{background:linear-gradient(135deg,#173b72,#2367a8);color:#fff;padding:22px}.wrap{max-width:1200px;margin:auto}h1{margin:0 0 6px;font-size:25px}.sub{opacity:.9}
-.grid{display:grid;grid-template-columns:340px 1fr;gap:18px;margin:18px auto}.card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:18px;box-shadow:0 6px 20px #173b7212;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:340px minmax(0,1fr);gap:18px;margin:18px auto}.card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:18px;box-shadow:0 6px 20px #173b7212;margin-bottom:16px}
 label{display:block;font-size:13px;font-weight:700;margin:11px 0 6px}input,select,button{width:100%;padding:11px;border-radius:10px;border:1px solid #cbd5e1;font:inherit}button{border:0;background:#1769aa;color:#fff;font-weight:700;cursor:pointer;margin-top:9px}button.secondary{background:#64748b}button.danger{background:#b42318}button.good{background:#15803d}button:disabled{opacity:.55;cursor:not-allowed}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.qr{min-height:260px;display:flex;align-items:center;justify-content:center;background:#f8fafc;border-radius:12px;margin-top:14px}.qr img{width:225px;height:225px;background:#fff;padding:10px;border-radius:8px}.status{padding:11px;border-radius:10px;background:#eef6ff;margin-top:12px;font-size:14px}.ok{background:#dcfce7;color:#166534;padding:11px;border-radius:10px;margin-top:10px}.err{background:#fee2e2;color:#991b1b;padding:11px;border-radius:10px;margin-top:10px}.warn{background:#fef3c7;color:#92400e;padding:11px;border-radius:10px;margin-top:10px}
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tabs button{width:auto;margin:0;padding:9px 12px}.tabs button.active{background:#0f4f82}.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}.stat{background:#f8fafc;border-radius:12px;padding:13px;text-align:center}.num{font-size:22px;font-weight:800}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px;border-bottom:1px solid #e5e7eb;text-align:left;white-space:nowrap}th{background:#f8fafc}.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}.present{background:#dcfce7;color:#166534}.late{background:#fef3c7;color:#92400e}.absent{background:#fee2e2;color:#991b1b}.neutral{background:#e2e8f0;color:#475569}.permit{background:#dbeafe;color:#1e40af}.hidden{display:none!important}.muted{color:#64748b;font-size:13px}.toprow{display:flex;gap:10px;align-items:center;justify-content:space-between}.toprow button{width:auto}.student-page{max-width:520px;margin:26px auto;padding:0 14px}.login{max-width:440px;margin:32px auto}.filterrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}.manual{display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:end}.manual button{margin:0}
 /* ===== RESPONSIVE: computadora, tablet y celular ===== */
-.grid{padding:0 16px}.login{padding:0 14px}
+.grid{padding:0 16px}.grid>*{min-width:0}.login{padding:0 14px}html,body{max-width:100%;overflow-x:hidden}
 /* Pantallas grandes */
-@media(min-width:1500px){.wrap{max-width:1360px}.grid{grid-template-columns:360px 1fr}}
+@media(min-width:1500px){.wrap{max-width:1360px}.grid{grid-template-columns:360px minmax(0,1fr)}}
 /* Laptop chica / tablet horizontal */
-@media(max-width:1100px){.grid{grid-template-columns:300px 1fr;gap:14px}.stats{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:1100px){.grid{grid-template-columns:300px minmax(0,1fr);gap:14px}.stats{grid-template-columns:repeat(3,1fr)}}
 /* Tablet vertical y celular: una sola columna */
 @media(max-width:850px){
-  .grid{grid-template-columns:1fr;margin:14px auto}
+  .grid{grid-template-columns:minmax(0,1fr);margin:14px auto}
   .manual{grid-template-columns:1fr}
   button,input,select{min-height:44px}
   td button{min-height:36px}
@@ -56,7 +56,7 @@ label{display:block;font-size:13px;font-weight:700;margin:11px 0 6px}input,selec
 </style>
 </head>
 <body>
-<header><div class="wrap"><h1>Control de Asistencia </h1><div class="sub">Complejo Educativo “Eduardo Salaverría” · 2.º Bachillerato General “A”</div></div></header>
+<header><div class="wrap"><h1>Control de Asistencia QR · V2</h1><div class="sub">Complejo Educativo “Eduardo Salaverría” · 2.º Bachillerato General “A”</div></div></header>
 
 <div id="studentView" class="student-page hidden">
   <div class="card">
