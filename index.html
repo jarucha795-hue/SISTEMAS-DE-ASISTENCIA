@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Control de Asistencia QR · V2 · 2.º Bachillerato A</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
+<style>
+*{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;background:#f4f7fb;color:#172033}
+header{background:linear-gradient(135deg,#173b72,#2367a8);color:#fff;padding:22px}.wrap{max-width:1200px;margin:auto}h1{margin:0 0 6px;font-size:25px}.sub{opacity:.9}
+.grid{display:grid;grid-template-columns:340px 1fr;gap:18px;margin:18px auto}.card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:18px;box-shadow:0 6px 20px #173b7212;margin-bottom:16px}
+label{display:block;font-size:13px;font-weight:700;margin:11px 0 6px}input,select,button{width:100%;padding:11px;border-radius:10px;border:1px solid #cbd5e1;font:inherit}button{border:0;background:#1769aa;color:#fff;font-weight:700;cursor:pointer;margin-top:9px}button.secondary{background:#64748b}button.danger{background:#b42318}button.good{background:#15803d}button:disabled{opacity:.55;cursor:not-allowed}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.qr{min-height:260px;display:flex;align-items:center;justify-content:center;background:#f8fafc;border-radius:12px;margin-top:14px}.qr img{width:225px;height:225px;background:#fff;padding:10px;border-radius:8px}.status{padding:11px;border-radius:10px;background:#eef6ff;margin-top:12px;font-size:14px}.ok{background:#dcfce7;color:#166534;padding:11px;border-radius:10px;margin-top:10px}.err{background:#fee2e2;color:#991b1b;padding:11px;border-radius:10px;margin-top:10px}.warn{background:#fef3c7;color:#92400e;padding:11px;border-radius:10px;margin-top:10px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tabs button{width:auto;margin:0;padding:9px 12px}.tabs button.active{background:#0f4f82}.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}.stat{background:#f8fafc;border-radius:12px;padding:13px;text-align:center}.num{font-size:22px;font-weight:800}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px;border-bottom:1px solid #e5e7eb;text-align:left;white-space:nowrap}th{background:#f8fafc}.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}.present{background:#dcfce7;color:#166534}.late{background:#fef3c7;color:#92400e}.absent{background:#fee2e2;color:#991b1b}.neutral{background:#e2e8f0;color:#475569}.permit{background:#dbeafe;color:#1e40af}.hidden{display:none!important}.muted{color:#64748b;font-size:13px}.toprow{display:flex;gap:10px;align-items:center;justify-content:space-between}.toprow button{width:auto}.student-page{max-width:520px;margin:26px auto;padding:0 14px}.login{max-width:440px;margin:32px auto}.filterrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}.manual{display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:end}.manual button{margin:0}
+@media(max-width:850px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.actions{grid-template-columns:1fr}.manual{grid-template-columns:1fr}.filterrow{grid-template-columns:1fr}}
+@media print{header,.left,.tabs,.no-print{display:none!important}.grid{display:block}.card{box-shadow:none;border:0}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>Control de Asistencia QR · V2</h1><div class="sub">Complejo Educativo “Eduardo Salaverría” · 2.º Bachillerato General “A”</div></div></header>
+
+<div id="studentView" class="student-page hidden">
+  <div class="card">
+    <h2>📱 Registrar asistencia</h2>
+    <p class="muted">Escribe tu NIE. El sistema validará la sesión y evitará registros duplicados.</p>
+    <label>NIE</label><input id="studentNie" inputmode="numeric" autocomplete="off" placeholder="Escribe tu NIE">
+    <button id="studentRegister">Registrar asistencia</button>
+    <div id="studentMsg"></div>
+  </div>
+</div>
+
+<div id="loginView" class="login hidden">
+  <div class="card">
+    <h2>👩‍🏫 Acceso del profesor</h2>
+    <p class="muted">Usa el usuario creado en Supabase Authentication.</p>
+    <label>Correo</label><input id="loginEmail" type="email" autocomplete="username">
+    <label>Contraseña</label><input id="loginPassword" type="password" autocomplete="current-password">
+    <button id="loginBtn">Iniciar sesión</button>
+    <div id="loginMsg"></div>
+  </div>
+</div>
+
+<main id="teacherView" class="wrap grid hidden">
+<section class="left">
+  <div class="card">
+    <div class="toprow"><h2>Panel del profesor</h2><button id="logoutBtn" class="secondary">Salir</button></div>
+    <label>Profesor/a</label><input id="teacher" value="CECILIA PILIA">
+    <label>Asignatura</label><input id="subject" placeholder="Ej. Matemática">
+    <div class="filterrow"><div><label>Duración</label><select id="duration"><option value="5">5 minutos</option><option value="10">10 minutos</option><option value="15">15 minutos</option><option value="30">30 minutos</option></select></div><div><label>Tolerancia</label><select id="tolerance"><option value="2">2 minutos</option><option value="5">5 minutos</option><option value="10">10 minutos</option></select></div></div>
+    <button id="start">▶️ Iniciar asistencia</button>
+    <button id="close" class="danger" disabled>⏹️ Cerrar asistencia</button>
+    <div id="session" class="status">No hay una sesión activa.</div>
+    <label id="publicUrlLbl">Dirección pública del sistema (para el QR)</label><input id="publicUrl" placeholder="https://tusitio.netlify.app/">
+    <div class="qr" id="qr"><span class="muted">El QR aparecerá aquí al iniciar.</span></div>
+    <div class="actions">
+      <button id="copyLink" class="secondary" disabled>🔗 Copiar enlace</button>
+      <button id="refreshBtn" class="secondary">↻ Actualizar</button>
+      <button id="shareBtn" class="good" style="grid-column:1/-1" disabled>📤 Compartir enlace (WhatsApp, etc.)</button>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Registro manual</h3>
+    <div class="manual"><div><label>Alumno</label><select id="manualStudent"><option value="">Seleccione…</option></select></div><button id="manualBtn" class="good" disabled>Agregar</button></div>
+    <label>Motivo del permiso (opcional)</label><input id="permReason" placeholder="Ej. Cita médica, actividad institucional">
+    <button id="permBtn" class="secondary" disabled>📝 Marcar con permiso</button>
+    <div id="manualMsg"></div>
+  </div>
+</section>
+
+<section>
+  <div class="card">
+    <div class="tabs no-print">
+      <button data-tab="asistencia" class="active">📋 Asistencia</button>
+      <button data-tab="estadisticas">📊 Estadísticas</button>
+      <button data-tab="historial">📅 Historial</button>
+    </div>
+
+    <div id="tab-asistencia" class="tabpane">
+      <div class="stats">
+        <div class="stat"><div class="num" id="total">0</div><small>Alumnos</small></div>
+        <div class="stat"><div class="num" id="presentCount">0</div><small>Presentes</small></div>
+        <div class="stat"><div class="num" id="lateCount">0</div><small>Tardanzas</small></div>
+        <div class="stat"><div class="num" id="permitCount">0</div><small>Permisos</small></div>
+        <div class="stat"><div class="num" id="absentCount">0</div><small>Ausentes</small></div>
+        <div class="stat"><div class="num" id="percent">0%</div><small>Asistencia</small></div>
+      </div>
+      <div class="toprow"><h2>Asistencia de la sesión</h2><button id="pdfSession" class="secondary no-print" disabled>📄 PDF sesión</button></div>
+      <div class="tablewrap"><table><thead><tr><th>#</th><th>NIE</th><th>Alumno/a</th><th>Estado</th><th>Hora</th><th>Método</th><th>Motivo</th><th></th></tr></thead><tbody id="attendanceBody"></tbody></table></div>
+    </div>
+
+    <div id="tab-estadisticas" class="tabpane hidden">
+      <div class="filterrow no-print"><div><label>Período</label><select id="period"><option value="today">Hoy</option><option value="week">Última semana</option><option value="month">Último mes</option><option value="all">Todo el período</option></select></div><div style="align-self:end"><button id="pdfPeriod" class="secondary">📄 PDF del período</button></div></div>
+      <h2>Estadísticas por alumno</h2>
+      <div id="sessionExtra" class="status">Selecciona o inicia una sesión para ver datos de llegada.</div>
+      <div class="tablewrap"><table><thead><tr><th>Alumno</th><th>Sesiones</th><th>Presentes</th><th>Tardanzas</th><th>Permisos</th><th>Ausencias</th><th>%</th></tr></thead><tbody id="studentStatsBody"></tbody></table></div>
+    </div>
+
+    <div id="tab-historial" class="tabpane hidden">
+      <h2>Historial de sesiones</h2>
+      <div class="tablewrap"><table><thead><tr><th>Fecha</th><th>Asignatura</th><th>Profesor</th><th>Estado</th><th>Registrados</th><th></th></tr></thead><tbody id="historyBody"></tbody></table></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+// ==================== CONFIGURA AQUÍ ====================
+const SUPABASE_URL = "https://yuaksgpiwqjnjwylbtke.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_CY8L6suBVdG-evGfrRbhRA_m_eaA6Nh";
+// URL pública donde está alojado este archivo (ej. https://tusitio.com/asistencia.html).
+// Déjala vacía si ya abres el sistema desde su enlace público (https://...).
+const PUBLIC_URL = "";
+// ========================================================
+const sb = (SUPABASE_URL.startsWith('http') && !SUPABASE_ANON_KEY.startsWith('PEGA_')) ? supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
+const $=id=>document.getElementById(id);
+let students=[], currentSession=null, attendance=[], poller=null, qrLink='';
+const fmtDT=v=>v?new Date(v).toLocaleString('es-SV',{dateStyle:'short',timeStyle:'medium'}):'—';
+const fmtTime=v=>v?new Date(v).toLocaleTimeString('es-SV',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function token(){return (crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random()).replaceAll('-','').slice(0,32)}
+function configError(target='loginMsg'){ $(target).innerHTML='<div class="err">Primero coloca SUPABASE_URL y SUPABASE_ANON_KEY dentro del archivo HTML.</div>'; }
+
+function route(){
+  const hashToken = location.hash.match(/^#asistencia=([A-Za-z0-9_-]+)$/);
+  const queryToken = new URLSearchParams(location.search).get('asistencia');
+  const t = queryToken || (hashToken ? hashToken[1] : null);
+
+  if(t){
+    $('studentView').classList.remove('hidden');
+    $('loginView').classList.add('hidden');
+    $('teacherView').classList.add('hidden');
+    window.qrToken = t;
+    return true;
+  }
+
+  return false;
+}
+
+window.addEventListener('hashchange',()=>{if(/^#asistencia=/.test(location.hash))route()});
+
+async function init(){
+  if(route()) return;
+  if(!sb){$('loginView').classList.remove('hidden');configError();return}
+  const {data:{session}}=await sb.auth.getSession();
+  if(session) await openTeacher(); else $('loginView').classList.remove('hidden');
+}
+
+$('loginBtn').onclick=async()=>{
+  if(!sb)return configError(); $('loginMsg').textContent='';
+  const {error}=await sb.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPassword').value});
+  if(error){$('loginMsg').innerHTML='<div class="err">'+esc(error.message)+'</div>';return} await openTeacher();
+};
+$('logoutBtn').onclick=async()=>{if(poller)clearInterval(poller);await sb.auth.signOut();location.hash='';location.reload()};
+
+async function openTeacher(){
+  $('loginView').classList.add('hidden');$('teacherView').classList.remove('hidden');
+  await loadStudents(); await loadHistory();
+  const {data}=await sb.from('sesiones').select('*').eq('estado','abierta').order('inicio',{ascending:false}).limit(1).maybeSingle();
+  if(data && new Date(data.expira)>new Date()){currentSession=data;renderSession();await loadAttendance();startPolling()}
+  else renderRows();
+  await loadPeriodStats();
+}
+
+async function loadStudents(){
+  const {data,error}=await sb.from('estudiantes').select('*').eq('activo',true).eq('grado','2.º Bachillerato General').eq('seccion','A').order('nombre');
+  if(error){$('session').innerHTML='<span class="err">'+esc(error.message)+'</span>';return}
+  students=data||[];$('total').textContent=students.length;
+  $('manualStudent').innerHTML='<option value="">Seleccione…</option>'+students.map(s=>`<option value="${s.id}">${esc(s.nombre)} · ${esc(s.nie)}</option>`).join('');
+  renderRows();
+}
+
+async function startSession(){
+  if(!sb)return; const subject=$('subject').value.trim(); if(!subject){$('session').innerHTML='<div class="warn">Escribe la asignatura.</div>';return}
+  const mins=Number($('duration').value), now=new Date(), exp=new Date(now.getTime()+mins*60000), t=token();
+  const {data,error}=await sb.from('sesiones').insert({profesor_nombre:$('teacher').value.trim()||'DOCENTE',asignatura:subject,grado:'2.º Bachillerato General',seccion:'A',inicio:now.toISOString(),expira:exp.toISOString(),token:t,estado:'abierta',tolerancia_minutos:Number($('tolerance').value)}).select().single();
+  if(error){$('session').innerHTML='<div class="err">'+esc(error.message)+'</div>';return}
+  currentSession=data;attendance=[];renderSession();renderRows();await loadHistory();startPolling();
+}
+
+function renderSession(){
+  if(!currentSession)return;
+  const left=Math.max(0,new Date(currentSession.expira)-new Date());
+  $('start').disabled=currentSession.estado==='abierta';
+  $('close').disabled=currentSession.estado!=='abierta';
+  $('manualBtn').disabled=currentSession.estado!=='abierta';
+  $('pdfSession').disabled=false;
+  $('copyLink').disabled=false;
+  $('permBtn').disabled=false;
+  $('shareBtn').disabled=currentSession.estado!=='abierta';
+
+  $('session').textContent=`${currentSession.estado==='abierta'?'Asistencia activa':'Sesión cerrada'} · ${currentSession.asignatura} · ${fmtDT(currentSession.inicio)}${currentSession.estado==='abierta'?' · quedan '+Math.ceil(left/60000)+' min':''}`;
+
+  let base=(($('publicUrl')&&$('publicUrl').value.trim())||PUBLIC_URL||'');
+  if(base&&!/^https?:\/\//i.test(base))base='https://'+base;
+  const isLocal=!base&&(location.protocol==='file:'||['localhost','127.0.0.1'].includes(location.hostname));
+  let u;try{u=new URL(base||location.href)}catch(e){u=new URL(location.href)}
+  u.search = '';
+  u.searchParams.set('asistencia', currentSession.token);
+  u.hash = 'asistencia=' + currentSession.token; // respaldo por si el alojamiento elimina el "?..."
+  qrLink = u.toString();
+
+  $('qr').innerHTML=currentSession.estado!=='abierta'
+    ? '<span class="muted">Sesión cerrada</span>'
+    : isLocal
+      ? '<div class="warn">Este archivo está abierto desde tu computadora, por eso el QR no funciona en los celulares. Súbelo a un sitio web (Netlify, GitHub Pages, etc.) y pega su dirección en el campo “Dirección pública del sistema” de arriba; el QR aparecerá al instante.</div>'
+      : `<img alt="Código QR" src="https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(qrLink)}">`;
+
+}
+
+async function closeSession(){
+  if(!currentSession)return; const {error}=await sb.from('sesiones').update({estado:'cerrada',cierre:new Date().toISOString()}).eq('id',currentSession.id);
+  if(error){$('session').innerHTML='<div class="err">'+esc(error.message)+'</div>';return} currentSession.estado='cerrada';currentSession.cierre=new Date().toISOString();renderSession();if(poller)clearInterval(poller);await loadAttendance();await loadHistory();await loadPeriodStats();
+}
+
+async function loadAttendance(){
+  if(!currentSession){renderRows();return}
+  const {data,error}=await sb.from('asistencias').select('*').eq('sesion_id',currentSession.id).order('registrado_en');
+  if(!error){attendance=data||[];renderRows();renderExtras()}
+}
+
+function renderRows(){
+  const map=new Map(attendance.map(a=>[a.estudiante_id,a]));
+  $('attendanceBody').innerHTML=students.map((s,i)=>{const a=map.get(s.id);const state=a?a.estado:(currentSession&&currentSession.estado==='cerrada'?'ausente':'pendiente');const cls=state==='presente'?'present':state==='tarde'?'late':state==='permiso'?'permit':state==='ausente'?'absent':'neutral';return `<tr><td>${i+1}</td><td>${esc(s.nie)}</td><td>${esc(s.nombre)}</td><td><span class="pill ${cls}">${state[0].toUpperCase()+state.slice(1)}</span></td><td>${a?fmtTime(a.registrado_en):'—'}</td><td>${a?esc(a.metodo):'—'}</td><td>${a&&a.motivo?esc(a.motivo):'—'}</td><td>${a?`<button class="danger no-print" style="width:auto;margin:0;padding:6px 10px" title="Eliminar registro" onclick="deleteRecord('${a.id}')">🗑</button>`:''}</td></tr>`}).join('');
+  const p=attendance.filter(a=>a.estado==='presente').length,l=attendance.filter(a=>a.estado==='tarde').length,pm=attendance.filter(a=>a.estado==='permiso').length,abs=currentSession&&currentSession.estado==='cerrada'?Math.max(0,students.length-p-l-pm):0;
+  $('presentCount').textContent=p;$('lateCount').textContent=l;$('permitCount').textContent=pm;$('absentCount').textContent=abs;$('percent').textContent=(students.length?Math.round(((p+l)/students.length)*100):0)+'%';
+}
+
+function renderExtras(){
+  if(!currentSession||!attendance.length){$('sessionExtra').textContent='Todavía no hay registros para calcular horas de llegada.';return}
+  const ordered=[...attendance].sort((a,b)=>new Date(a.registrado_en)-new Date(b.registrado_en));const avg=ordered.reduce((x,a)=>x+new Date(a.registrado_en).getTime(),0)/ordered.length;
+  const qr=attendance.filter(a=>a.metodo==='qr').length,manual=attendance.filter(a=>a.metodo==='manual').length;
+  $('sessionExtra').innerHTML=`Hora promedio: <b>${fmtTime(new Date(avg))}</b> · Primer registro: <b>${fmtTime(ordered[0].registrado_en)}</b> · Último: <b>${fmtTime(ordered.at(-1).registrado_en)}</b> · QR: <b>${qr}</b> · Manual: <b>${manual}</b>`;
+}
+
+function startPolling(){if(poller)clearInterval(poller);poller=setInterval(async()=>{if(!currentSession||currentSession.estado!=='abierta')return;if(new Date()>new Date(currentSession.expira)){await closeSession();return}renderSession();await loadAttendance()},4000)}
+
+$('start').onclick=startSession;$('close').onclick=closeSession;$('refreshBtn').onclick=async()=>{await loadAttendance();await loadHistory();await loadPeriodStats()};
+$('copyLink').onclick=async()=>{if(qrLink){await navigator.clipboard.writeText(qrLink);$('session').textContent='Enlace del QR copiado.';setTimeout(renderSession,1300)}};
+
+$('manualBtn').onclick=async()=>{
+  if(!currentSession||currentSession.estado!=='abierta')return; const id=$('manualStudent').value;if(!id)return;
+  const now=new Date(), late=now>new Date(new Date(currentSession.inicio).getTime()+currentSession.tolerancia_minutos*60000);
+  const {error}=await sb.from('asistencias').insert({sesion_id:currentSession.id,estudiante_id:id,estado:late?'tarde':'presente',metodo:'manual'});
+  $('manualMsg').innerHTML=error?'<div class="err">'+esc(error.code==='23505'?'El alumno ya está registrado.':error.message)+'</div>':'<div class="ok">Registro manual agregado.</div>';
+  await loadAttendance();
+};
+
+$('permBtn').onclick=async()=>{
+  if(!currentSession)return; const id=$('manualStudent').value;
+  if(!id){$('manualMsg').innerHTML='<div class="warn">Selecciona un alumno.</div>';return}
+  const motivo=$('permReason').value.trim();
+  const {error}=await sb.from('asistencias').insert({sesion_id:currentSession.id,estudiante_id:id,estado:'permiso',metodo:'manual',motivo:motivo||null});
+  const msg=!error?'':error.code==='23505'?'El alumno ya tiene un registro en esta sesión. Elimínalo con 🗑 y vuelve a marcarlo con permiso.':error.code==='23514'||/motivo/i.test(error.message)?'Falta ejecutar el SQL de actualización en Supabase (permite el estado "permiso" y la columna "motivo").':error.message;
+  $('manualMsg').innerHTML=error?'<div class="err">'+esc(msg)+'</div>':'<div class="ok">Permiso registrado.</div>';
+  if(!error)$('permReason').value='';
+  await loadAttendance();await loadHistory();await loadPeriodStats();
+};
+
+window.deleteRecord=async id=>{
+  const a=attendance.find(x=>String(x.id)===String(id)); if(!a)return;
+  const s=students.find(x=>x.id===a.estudiante_id);
+  if(!confirm(`¿Eliminar el registro de ${s?s.nombre:'este alumno'}? Después podrá registrarse de nuevo.`))return;
+  const {data,error}=await sb.from('asistencias').delete().eq('id',id).select();
+  if(error){$('manualMsg').innerHTML='<div class="err">'+esc(error.message)+'</div>';return}
+  if(!data||!data.length){$('manualMsg').innerHTML='<div class="err">No se pudo eliminar: falta el permiso de borrado en Supabase (ejecuta el SQL de actualización).</div>';return}
+  $('manualMsg').innerHTML='<div class="ok">Registro eliminado.</div>';
+  await loadAttendance();await loadHistory();await loadPeriodStats();
+};
+
+window.deleteSession=async id=>{
+  if(!confirm('¿Eliminar esta sesión completa y todos sus registros de asistencia? Esta acción no se puede deshacer.'))return;
+  await sb.from('asistencias').delete().eq('sesion_id',id);
+  const {data,error}=await sb.from('sesiones').delete().eq('id',id).select();
+  if(error||!data||!data.length){alert(error?error.message:'No se pudo eliminar la sesión: falta el permiso de borrado en Supabase (ejecuta el SQL de actualización).');await loadHistory();return}
+  if(currentSession&&currentSession.id===id){
+    if(poller)clearInterval(poller);currentSession=null;attendance=[];qrLink='';
+    $('session').textContent='No hay una sesión activa.';$('qr').innerHTML='<span class="muted">El QR aparecerá aquí al iniciar.</span>';
+    $('start').disabled=false;$('close').disabled=true;['manualBtn','permBtn','pdfSession','copyLink'].forEach(x=>$(x).disabled=true);
+    $('sessionExtra').textContent='Selecciona o inicia una sesión para ver datos de llegada.';renderRows();
+  }
+  await loadHistory();await loadPeriodStats();
+};
+
+$('studentRegister').onclick=async()=>{
+  if(!sb)return configError('studentMsg'); const nie=$('studentNie').value.trim(); if(!nie){$('studentMsg').innerHTML='<div class="warn">Escribe tu NIE.</div>';return}
+  $('studentRegister').disabled=true;
+  const {data,error}=await sb.rpc('registrar_asistencia_qr',{p_token:window.qrToken,p_nie:nie});
+  $('studentRegister').disabled=false;
+  if(error){$('studentMsg').innerHTML='<div class="err">'+esc(error.message)+'</div>';return}
+  $('studentMsg').innerHTML=data.ok?`<div class="ok"><b>${esc(data.nombre)}</b><br>${esc(data.mensaje)} Estado: <b>${esc(data.estado)}</b>.</div>`:`<div class="err">${esc(data.mensaje)}</div>`;
+  if(data.ok)$('studentNie').value='';
+};
+$('studentNie').addEventListener('keydown',e=>{if(e.key==='Enter')$('studentRegister').click()});
+
+async function loadHistory(){
+  const {data,error}=await sb.from('sesiones').select('id,profesor_nombre,asignatura,inicio,estado,asistencias(count)').order('inicio',{ascending:false}).limit(100);
+  if(error)return;
+  $('historyBody').innerHTML=(data||[]).map(s=>`<tr><td>${fmtDT(s.inicio)}</td><td>${esc(s.asignatura)}</td><td>${esc(s.profesor_nombre)}</td><td>${esc(s.estado)}</td><td>${s.asistencias?.[0]?.count??0}</td><td><button style="width:auto;margin:0" onclick="openSession('${s.id}')">Ver</button><button class="danger" style="width:auto;margin:0 0 0 6px" title="Eliminar sesión" onclick="deleteSession('${s.id}')">🗑</button></td></tr>`).join('')||'<tr><td colspan="6">Sin sesiones.</td></tr>';
+}
+window.openSession=async id=>{const {data}=await sb.from('sesiones').select('*').eq('id',id).single();if(!data)return;currentSession=data;renderSession();await loadAttendance();showTab('asistencia')};
+
+function periodStart(){const v=$('period').value,n=new Date();if(v==='today'){n.setHours(0,0,0,0);return n}if(v==='week')return new Date(Date.now()-7*86400000);if(v==='month')return new Date(Date.now()-30*86400000);return null}
+async function loadPeriodStats(){
+  if(!sb||!students.length)return;let q=sb.from('sesiones').select('id,inicio').order('inicio');const from=periodStart();if(from)q=q.gte('inicio',from.toISOString());const {data:sessions}=await q;const ids=(sessions||[]).map(x=>x.id);let records=[];
+  if(ids.length){const {data}=await sb.from('asistencias').select('estudiante_id,estado,sesion_id').in('sesion_id',ids);records=data||[]}
+  const totalSessions=ids.length;$('studentStatsBody').innerHTML=students.map(s=>{const r=records.filter(a=>a.estudiante_id===s.id),p=r.filter(a=>a.estado==='presente').length,l=r.filter(a=>a.estado==='tarde').length,pm=r.filter(a=>a.estado==='permiso').length,a=Math.max(0,totalSessions-p-l-pm),pct=totalSessions?Math.round(((p+l)/totalSessions)*100):0;return `<tr><td>${esc(s.nombre)}</td><td>${totalSessions}</td><td>${p}</td><td>${l}</td><td>${pm}</td><td>${a}</td><td>${pct}%</td></tr>`}).join('');
+}
+$('shareBtn').onclick=async()=>{
+  if(!qrLink)return;
+  const text=`Registra tu asistencia de ${currentSession.asignatura}: `;
+  try{
+    if(navigator.share){await navigator.share({title:'Registro de asistencia',text,url:qrLink})}
+    else{await navigator.clipboard.writeText(text+qrLink);$('session').textContent='Enlace copiado. Pégalo en WhatsApp o donde quieras.';setTimeout(renderSession,1600)}
+  }catch(e){}
+};
+$('period').onchange=loadPeriodStats;
+if(/^https?:$/.test(location.protocol)&&!['localhost','127.0.0.1'].includes(location.hostname)){$('publicUrl').classList.add('hidden');$('publicUrlLbl').classList.add('hidden')}
+else{try{$('publicUrl').value=localStorage.getItem('publicUrl')||''}catch(e){}}
+$('publicUrl').addEventListener('input',()=>{try{localStorage.setItem('publicUrl',$('publicUrl').value.trim())}catch(e){}renderSession()});
+
+function showTab(name){document.querySelectorAll('.tabpane').forEach(x=>x.classList.add('hidden'));$('tab-'+name).classList.remove('hidden');document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));if(name==='estadisticas')loadPeriodStats();if(name==='historial')loadHistory()}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+
+$('pdfSession').onclick=()=>{
+  if(!currentSession)return;const {jsPDF}=window.jspdf;const doc=new jsPDF();const p=attendance.filter(a=>a.estado==='presente').length,l=attendance.filter(a=>a.estado==='tarde').length,pm=attendance.filter(a=>a.estado==='permiso').length,a=Math.max(0,students.length-p-l-pm),pct=students.length?Math.round(((p+l)/students.length)*100):0;
+  doc.setFontSize(14);doc.text('COMPLEJO EDUCATIVO "EDUARDO SALAVERRÍA"',14,16);doc.setFontSize(11);doc.text('2.º Bachillerato General — Sección A',14,23);doc.text('Control de asistencia',14,30);doc.text(`Fecha: ${new Date(currentSession.inicio).toLocaleDateString('es-SV')}`,14,38);doc.text(`Asignatura: ${currentSession.asignatura}`,14,45);doc.text(`Docente: ${currentSession.profesor_nombre}`,14,52);
+  doc.text(`Total: ${students.length}   Presentes: ${p}   Tardanzas: ${l}   Permisos: ${pm}`,14,60);doc.text(`Ausentes: ${a}   Asistencia: ${pct}%`,14,67);
+  const map=new Map(attendance.map(x=>[x.estudiante_id,x]));
+  doc.autoTable({startY:75,head:[['#','NIE','Estudiante','Estado','Hora','Observación']],columnStyles:{5:{cellWidth:55}},
+    body:students.map((s,i)=>{const r=map.get(s.id);return[i+1,s.nie,s.nombre,r?r.estado:'ausente',r?fmtTime(r.registrado_en):'—',r&&r.estado==='permiso'?('Permiso autorizado por el docente'+(r.motivo?': '+r.motivo:'')):'']}),
+    didParseCell:d=>{if(d.section==='body'&&d.row.raw[3]==='permiso')d.cell.styles.fillColor=[219,234,254]}});
+  const perms=attendance.filter(x=>x.estado==='permiso');
+  if(perms.length){
+    let y0=doc.lastAutoTable.finalY+10;if(y0>260){doc.addPage();y0=20}
+    doc.setFontSize(11);doc.text('Constancia de permisos autorizados manualmente por el docente',14,y0);
+    doc.autoTable({startY:y0+4,head:[['Estudiante','NIE','Motivo','Autorizado por','Fecha y hora']],
+      body:perms.map(x=>{const s=students.find(z=>z.id===x.estudiante_id)||{};return[s.nombre||'',s.nie||'',x.motivo||'Sin motivo indicado',currentSession.profesor_nombre,fmtDT(x.registrado_en)]})});
+  }
+  let y=doc.lastAutoTable.finalY+14;if(y>280){doc.addPage();y=24}
+  doc.setFontSize(11);doc.text('Firma del docente: _______________________________',14,y);doc.save(`asistencia_${currentSession.asignatura}_${new Date(currentSession.inicio).toISOString().slice(0,10)}.pdf`);
+};
+
+$('pdfPeriod').onclick=()=>{const {jsPDF}=window.jspdf;const doc=new jsPDF({orientation:'landscape'});doc.setFontSize(14);doc.text('Reporte de asistencia del período',14,16);doc.setFontSize(10);doc.text('COMPLEJO EDUCATIVO "EDUARDO SALAVERRÍA" · 2.º Bachillerato General — Sección A',14,23);const rows=[...$('studentStatsBody').querySelectorAll('tr')].map(tr=>[...tr.children].map(td=>td.textContent));doc.autoTable({startY:30,head:[['Alumno','Sesiones','Presentes','Tardanzas','Permisos','Ausencias','%']],body:rows});doc.save('reporte_periodo_asistencia.pdf')};
+
+init();
+</script>
+</body>
+</html>
